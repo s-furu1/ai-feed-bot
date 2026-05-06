@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.main import main
+from app.core.db import connect
 
 
 def test_main_starts_with_temp_db(tmp_path, monkeypatch, capsys):
@@ -11,6 +12,9 @@ def test_main_starts_with_temp_db(tmp_path, monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "ai-feed-bot started" in output
     assert "ai-feed-bot stopped" in output
+    with connect(str(tmp_path / "ai-feed.db")) as conn:
+        count = conn.execute("SELECT COUNT(*) AS count FROM feed_sources").fetchone()["count"]
+    assert count == 3
 
 
 def test_main_waits_when_worker_enabled(tmp_path, monkeypatch):

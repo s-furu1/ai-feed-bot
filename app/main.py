@@ -6,6 +6,7 @@ import threading
 from app.core.config import load_settings
 from app.core.db import connect, run_migrations
 from app.domains.events.service import record_event
+from app.domains.feed.service import seed_default_sources
 from app.worker.main import start_worker_if_enabled
 
 
@@ -33,6 +34,7 @@ def main() -> int:
     settings = load_settings()
     with connect(settings.ai_feed_db_path) as conn:
         run_migrations(conn)
+        seed_default_sources(conn)
         record_event(conn, "app.started", "app", {"env": settings.app_env})
 
     print("ai-feed-bot started")

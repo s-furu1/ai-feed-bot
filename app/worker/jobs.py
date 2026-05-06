@@ -14,6 +14,10 @@ def run_draft_generation_job(draft_service, feed_item_ids: list[int]) -> list[in
     return [draft_service.generate_for_item(feed_item_id) for feed_item_id in feed_item_ids]
 
 
+def run_missing_draft_generation_job(draft_service, limit: int):
+    return draft_service.generate_missing_drafts(limit)
+
+
 def run_notification_job(
     conn: sqlite3.Connection,
     notify: Callable[[], None],

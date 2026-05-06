@@ -36,7 +36,8 @@ class FeedItem:
 
 @dataclass(frozen=True)
 class FetchResult:
-    created: int
-    duplicates: int
-    failed: int
-
+    created: int = 0
+    duplicates: int = 0
+    failed: int = 0
+    source_count: int = 0
+    item_count: int = 0

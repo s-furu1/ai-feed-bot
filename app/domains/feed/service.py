@@ -17,9 +17,23 @@ INITIAL_SOURCES = (
 )
 
 
-def seed_initial_sources(conn: sqlite3.Connection) -> None:
+def seed_default_sources(conn: sqlite3.Connection) -> int:
+    before = {source.url for source in repository.list_sources(conn)}
     for name, url in INITIAL_SOURCES:
         repository.upsert_source(conn, name, url, enabled=True)
+    after = {source.url for source in repository.list_sources(conn)}
+    added = len(after - before)
+    record_event(
+        conn,
+        "feed.sources.seeded",
+        "feed",
+        {"source_count": len(after), "added": added},
+    )
+    return added
+
+
+def seed_initial_sources(conn: sqlite3.Connection) -> None:
+    seed_default_sources(conn)
 
 
 def content_hash_for(item: ParsedFeedItem) -> str:
@@ -64,7 +78,7 @@ class FeedService:
         self.conn = conn
 
     def seed_initial_sources(self) -> None:
-        seed_initial_sources(self.conn)
+        seed_default_sources(self.conn)
 
     def save_item(self, source_id: int, item: ParsedFeedItem) -> int | None:
         content_hash = content_hash_for(item)
@@ -86,14 +100,20 @@ class FeedService:
         return item_id
 
     def fetch_all(self) -> FetchResult:
+        seed_default_sources(self.conn)
         record_event(self.conn, "feed.fetch.started", "feed", {})
+        sources = repository.list_enabled_sources(self.conn)
+        source_count = len(sources)
+        item_count = 0
         created = 0
         duplicates = 0
         failed = 0
-        for source in repository.list_enabled_sources(self.conn):
+        for source in sources:
             try:
                 xml_text = fetch_text(source.url)
-                for item in parse_rss(xml_text):
+                items = parse_rss(xml_text)
+                item_count += len(items)
+                for item in items:
                     if self.save_item(source.id, item) is None:
                         duplicates += 1
                     else:
@@ -110,9 +130,21 @@ class FeedService:
             self.conn,
             "feed.fetch.completed",
             "feed",
-            {"created": created, "duplicates": duplicates, "failed": failed},
+            {
+                "source_count": source_count,
+                "item_count": item_count,
+                "created": created,
+                "duplicates": duplicates,
+                "failed": failed,
+            },
         )
-        return FetchResult(created=created, duplicates=duplicates, failed=failed)
+        return FetchResult(
+            source_count=source_count,
+            item_count=item_count,
+            created=created,
+            duplicates=duplicates,
+            failed=failed,
+        )
 
     def recent_items(self, limit: int = 5):
         return repository.list_recent_items(self.conn, limit)
@@ -122,4 +154,3 @@ def fetch_text(url: str, timeout: int = 20) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "ai-feed-bot/0.1"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read().decode("utf-8")
-

@@ -33,6 +33,10 @@ Ollama は ai-feed-bot に内包しません。
 
 初期モデル名は設定値として `qwen3.5:9b` を想定します。実在確認やモデルpullはこのフェーズでは行いません。
 
+`OLLAMA_TIMEOUT_SECONDS` (default 300) で HTTP request timeout を調整できます。重いモデルや初回ロード時はモデルロードに数分かかるため、Apple Silicon で 9b 以上のモデルを使う場合は default のままか、必要なら 600 程度まで伸ばしてください。0以下や不正値は default 300 に丸めます。
+
+`OLLAMA_KEEP_ALIVE` (default `10m`) は `/api/generate` payload にそのまま渡し、モデルを VRAM/RAM に常駐させる時間を Ollama 側に指示します。連続生成時の再ロード待ちを抑える用途です。
+
 ## Slack gateway
 
 Slack App と slash command は life-bot のみです。ai-feed-bot は実運用で Slack に直接接続しません。
@@ -80,9 +84,18 @@ AI_FEED_ENABLE_WORKER=true python -m app.main
 - `AI_FEED_WEB_PORT`
 - `OLLAMA_BASE_URL`
 - `OLLAMA_MODEL`
+- `OLLAMA_TIMEOUT_SECONDS` (default 300)
+- `OLLAMA_KEEP_ALIVE` (default `10m`)
 - `AI_FEED_FETCH_INTERVAL_MINUTES`
+- `AI_FEED_DRAFT_GENERATION_LIMIT` (default 5)
 
 secret 実値は `.env.example`、README、コードに書きません。
+
+## 下書き生成
+
+`POST /internal/feed/fetch` は RSS取得後、未draft の `feed_items` のうち新しいものから最大 `AI_FEED_DRAFT_GENERATION_LIMIT` 件 (default 5) を Ollama に投げて `generated_drafts` に `pending` 状態で保存します。
+
+初回大量RSS取得時 (例: 1807件) を1回でOllama処理するとモデル実行時間とI/Oで詰まるため、1回の `feed.fetch.run` あたり最大N件ずつ生成し、全件を埋めるには `feed.fetch.run` を複数回実行する運用にします。Ollama接続失敗時は `draft.generate_failed` event を残し、レスポンスの `ollama_unavailable` が true になります。
 
 ## DB
 

@@ -98,6 +98,48 @@ def get_item(conn: sqlite3.Connection, feed_item_id: int) -> FeedItem | None:
     )
 
 
+def list_undrafted_items(conn: sqlite3.Connection, limit: int) -> list[FeedItem]:
+    rows = conn.execute(
+        """
+        SELECT feed_items.*
+        FROM feed_items
+        LEFT JOIN generated_drafts
+          ON generated_drafts.feed_item_id = feed_items.id
+        WHERE generated_drafts.id IS NULL
+        ORDER BY feed_items.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [
+        FeedItem(
+            id=int(row["id"]),
+            source_id=int(row["source_id"]),
+            title=row["title"],
+            url=row["url"],
+            guid=row["guid"],
+            published_at=row["published_at"],
+            content_hash=row["content_hash"],
+            raw_content=row["raw_content"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def count_undrafted_items(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM feed_items
+        LEFT JOIN generated_drafts
+          ON generated_drafts.feed_item_id = feed_items.id
+        WHERE generated_drafts.id IS NULL
+        """
+    ).fetchone()
+    return int(row["count"])
+
+
 def list_recent_items(conn: sqlite3.Connection, limit: int = 5) -> list[FeedItem]:
     rows = conn.execute(
         "SELECT * FROM feed_items ORDER BY id DESC LIMIT ?", (limit,)

@@ -27,15 +27,93 @@ def test_feed_fetch_endpoint_uses_service(monkeypatch, tmp_path):
             pass
 
         def fetch_all(self):
-            return type("R", (), {"created": 1, "duplicates": 2, "failed": 0})()
+            return type(
+                "R",
+                (),
+                {
+                    "source_count": 3,
+                    "item_count": 4,
+                    "created": 1,
+                    "duplicates": 2,
+                    "failed": 0,
+                },
+            )()
+
+    class FakeDraftService:
+        def __init__(self, conn, ollama):
+            pass
+
+        def generate_missing_drafts(self, limit):
+            from app.domains.drafts.service import DraftGenerationSummary
+
+            return DraftGenerationSummary(
+                target=0, generated=0, failed=0, ollama_unavailable=False
+            )
 
     monkeypatch.setattr("app.web.main.FeedService", FakeFeedService)
+    monkeypatch.setattr("app.web.main.DraftService", FakeDraftService)
     client = TestClient(create_app())
 
     response = client.post("/internal/feed/fetch")
 
     assert response.status_code == 200
-    assert response.json()["created"] == 1
+    body = response.json()
+    assert body["created"] == 1
+    assert body["source_count"] == 3
+    assert body["drafts_target"] == 0
+    assert body["drafts_generated"] == 0
+    assert body["drafts_failed"] == 0
+    assert body["ollama_unavailable"] is False
+
+
+def test_feed_fetch_endpoint_returns_draft_generation_summary(monkeypatch, tmp_path):
+    monkeypatch.setenv("AI_FEED_DB_PATH", str(tmp_path / "ai-feed.db"))
+    monkeypatch.setenv("AI_FEED_DRAFT_GENERATION_LIMIT", "5")
+
+    class FakeFeedService:
+        def __init__(self, conn):
+            pass
+
+        def fetch_all(self):
+            return type(
+                "R",
+                (),
+                {
+                    "source_count": 3,
+                    "item_count": 1807,
+                    "created": 0,
+                    "duplicates": 1807,
+                    "failed": 0,
+                },
+            )()
+
+    received_limits = []
+
+    class FakeDraftService:
+        def __init__(self, conn, ollama):
+            pass
+
+        def generate_missing_drafts(self, limit):
+            from app.domains.drafts.service import DraftGenerationSummary
+
+            received_limits.append(limit)
+            return DraftGenerationSummary(
+                target=5, generated=5, failed=0, ollama_unavailable=False
+            )
+
+    monkeypatch.setattr("app.web.main.FeedService", FakeFeedService)
+    monkeypatch.setattr("app.web.main.DraftService", FakeDraftService)
+    client = TestClient(create_app())
+
+    response = client.post("/internal/feed/fetch")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert received_limits == [5]
+    assert body["duplicates"] == 1807
+    assert body["drafts_target"] == 5
+    assert body["drafts_generated"] == 5
+    assert body["ollama_unavailable"] is False
 
 
 def test_pending_drafts_endpoint_returns_drafts(monkeypatch, tmp_path):

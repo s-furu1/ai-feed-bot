@@ -38,7 +38,12 @@ def register_action_handlers(
     draft_factory = draft_service_factory or (
         lambda conn: DraftService(
             conn,
-            OllamaClient(settings.ollama_base_url, settings.ollama_model),
+            OllamaClient(
+                settings.ollama_base_url,
+                settings.ollama_model,
+                timeout=settings.ollama_timeout_seconds,
+                keep_alive=settings.ollama_keep_alive,
+            ),
         )
     )
     db_ctx = db_context_factory or (lambda: _open_db(settings.ai_feed_db_path))

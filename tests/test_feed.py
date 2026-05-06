@@ -5,7 +5,7 @@ import json
 from app.core.db import connect, run_migrations
 from app.domains.feed.models import ParsedFeedItem
 from app.domains.feed.repository import list_sources
-from app.domains.feed.service import FeedService, parse_rss
+from app.domains.feed.service import FeedService, parse_rss, seed_default_sources
 
 
 SAMPLE_RSS = """<?xml version="1.0"?>
@@ -40,6 +40,13 @@ def test_seed_initial_sources_is_idempotent(tmp_path):
         ]
 
 
+def test_seed_default_sources_adds_missing_sources(tmp_path):
+    with _conn(tmp_path) as conn:
+        seed_default_sources(conn)
+        seed_default_sources(conn)
+        assert len(list_sources(conn)) == 3
+
+
 def test_parse_and_save_rss_item_with_duplicate_detection(tmp_path):
     with _conn(tmp_path) as conn:
         service = FeedService(conn)
@@ -59,6 +66,21 @@ def test_parse_and_save_rss_item_with_duplicate_detection(tmp_path):
         assert "feed.item.duplicate" in event_types
 
 
+def test_fetch_all_returns_summary(monkeypatch, tmp_path):
+    with _conn(tmp_path) as conn:
+        service = FeedService(conn)
+        monkeypatch.setattr("app.domains.feed.service.fetch_text", lambda url: SAMPLE_RSS)
+
+        result = service.fetch_all()
+        duplicate = service.fetch_all()
+
+        assert result.source_count == 3
+        assert result.item_count == 3
+        assert result.created == 1
+        assert result.duplicates == 2
+        assert duplicate.duplicates == 3
+
+
 def test_events_payload_is_valid_json(tmp_path):
     with _conn(tmp_path) as conn:
         service = FeedService(conn)
@@ -70,4 +92,3 @@ def test_events_payload_is_valid_json(tmp_path):
         )
         for row in conn.execute("SELECT payload_json FROM events").fetchall():
             assert isinstance(json.loads(row["payload_json"]), dict)
-

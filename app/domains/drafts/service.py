@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 
 from app.domains.drafts import repository
 from app.domains.drafts.models import DRAFT_STATUSES, GeneratedDraft
 from app.domains.events.service import record_event
-from app.domains.feed.repository import get_item
+from app.domains.feed.repository import get_item, list_undrafted_items
+
+
+@dataclass(frozen=True)
+class DraftGenerationSummary:
+    target: int
+    generated: int
+    failed: int
+    ollama_unavailable: bool
 
 
 class DraftService:
@@ -66,6 +75,31 @@ class DraftService:
 
     def regenerate(self, draft_id: int) -> GeneratedDraft:
         return self.set_status(draft_id, "regenerated")
+
+    def generate_missing_drafts(self, limit: int) -> DraftGenerationSummary:
+        if limit <= 0:
+            return DraftGenerationSummary(
+                target=0, generated=0, failed=0, ollama_unavailable=False
+            )
+        items = list_undrafted_items(self.conn, limit)
+        target = len(items)
+        generated = 0
+        failed = 0
+        ollama_unavailable = False
+        for item in items:
+            try:
+                self.generate_for_item(item.id)
+                generated += 1
+            except Exception:
+                failed += 1
+                ollama_unavailable = True
+                break
+        return DraftGenerationSummary(
+            target=target,
+            generated=generated,
+            failed=failed,
+            ollama_unavailable=ollama_unavailable,
+        )
 
 
 def build_prompt(title: str, url: str, raw_content: str) -> str:

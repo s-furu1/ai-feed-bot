@@ -18,6 +18,19 @@ def _env_int(name: str, default: int) -> int:
     return int(value)
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    if parsed <= 0:
+        return default
+    return parsed
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -34,7 +47,10 @@ class Settings:
     slack_channel_ai_feed: str | None
     ollama_base_url: str
     ollama_model: str
+    ollama_timeout_seconds: int
+    ollama_keep_alive: str
     ai_feed_fetch_interval_minutes: int
+    ai_feed_draft_generation_limit: int
 
 
 def load_settings() -> Settings:
@@ -53,5 +69,8 @@ def load_settings() -> Settings:
         slack_channel_ai_feed=os.getenv("SLACK_CHANNEL_AI_FEED") or None,
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "qwen3.5:9b"),
+        ollama_timeout_seconds=_env_positive_int("OLLAMA_TIMEOUT_SECONDS", 300),
+        ollama_keep_alive=os.getenv("OLLAMA_KEEP_ALIVE", "10m") or "10m",
         ai_feed_fetch_interval_minutes=_env_int("AI_FEED_FETCH_INTERVAL_MINUTES", 60),
+        ai_feed_draft_generation_limit=_env_int("AI_FEED_DRAFT_GENERATION_LIMIT", 5),
     )

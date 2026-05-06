@@ -80,3 +80,99 @@ def test_x_auto_posting_is_not_implemented():
     for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not any(token in text for token in forbidden)
+
+
+def test_generate_missing_drafts_targets_only_undrafted_items(tmp_path):
+    conn, item_id = _prepared_conn(tmp_path)
+    try:
+        feed_service = FeedService(conn)
+        source_id = list_sources(conn)[0].id
+        for index in range(4):
+            feed_service.save_item(
+                source_id,
+                ParsedFeedItem(
+                    f"Article {index}",
+                    f"https://example.com/a/{index}",
+                    f"a-{index}",
+                    None,
+                    "raw",
+                ),
+            )
+        service = DraftService(conn, FakeOllama())
+
+        first = service.generate_missing_drafts(limit=2)
+        second = service.generate_missing_drafts(limit=2)
+        third = service.generate_missing_drafts(limit=2)
+
+        assert first.target == 2
+        assert first.generated == 2
+        assert second.target == 2
+        assert second.generated == 2
+        assert third.target == 1
+        assert third.generated == 1
+        total = conn.execute(
+            "SELECT COUNT(*) AS count FROM generated_drafts"
+        ).fetchone()["count"]
+        assert total == 5
+    finally:
+        conn.close()
+
+
+def test_generate_missing_drafts_respects_limit(tmp_path):
+    conn, item_id = _prepared_conn(tmp_path)
+    try:
+        feed_service = FeedService(conn)
+        source_id = list_sources(conn)[0].id
+        for index in range(10):
+            feed_service.save_item(
+                source_id,
+                ParsedFeedItem(
+                    f"Article {index}",
+                    f"https://example.com/b/{index}",
+                    f"b-{index}",
+                    None,
+                    "raw",
+                ),
+            )
+        service = DraftService(conn, FakeOllama())
+
+        summary = service.generate_missing_drafts(limit=5)
+
+        assert summary.target == 5
+        assert summary.generated == 5
+        assert summary.failed == 0
+        assert summary.ollama_unavailable is False
+    finally:
+        conn.close()
+
+
+def test_generate_missing_drafts_records_failure_when_ollama_down(tmp_path):
+    conn, item_id = _prepared_conn(tmp_path)
+    try:
+        service = DraftService(conn, FailingOllama())
+
+        summary = service.generate_missing_drafts(limit=3)
+
+        assert summary.target == 1
+        assert summary.generated == 0
+        assert summary.failed == 1
+        assert summary.ollama_unavailable is True
+        event_types = [
+            row["event_type"] for row in conn.execute("SELECT event_type FROM events")
+        ]
+        assert "draft.generate_failed" in event_types
+    finally:
+        conn.close()
+
+
+def test_generate_missing_drafts_with_zero_limit_is_noop(tmp_path):
+    conn, item_id = _prepared_conn(tmp_path)
+    try:
+        service = DraftService(conn, FakeOllama())
+
+        summary = service.generate_missing_drafts(limit=0)
+
+        assert summary.target == 0
+        assert summary.generated == 0
+    finally:
+        conn.close()

@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 
 from app.core.config import load_settings
 from app.core.db import connect, run_migrations
-from app.domains.drafts.repository import list_by_status
+from app.domains.drafts.repository import count_by_status, list_by_status
 from app.domains.drafts.service import DraftService
 from app.domains.feed.service import FeedService
 from app.ollama.client import OllamaClient
@@ -34,13 +34,34 @@ def create_app() -> FastAPI:
 
     @app.post("/internal/feed/fetch")
     def fetch_feed() -> dict:
+        settings = load_settings()
         with open_db() as conn:
             result = FeedService(conn).fetch_all()
+            draft_service = DraftService(
+                conn,
+                OllamaClient(
+                    settings.ollama_base_url,
+                    settings.ollama_model,
+                    timeout=settings.ollama_timeout_seconds,
+                    keep_alive=settings.ollama_keep_alive,
+                ),
+            )
+            drafts = draft_service.generate_missing_drafts(
+                settings.ai_feed_draft_generation_limit
+            )
             return {
                 "ok": True,
+                "source_count": result.source_count,
+                "item_count": result.item_count,
                 "created": result.created,
                 "duplicates": result.duplicates,
                 "failed": result.failed,
+                "drafts_target": drafts.target,
+                "drafts_generated": drafts.generated,
+                "drafts_failed": drafts.failed,
+                "ollama_unavailable": drafts.ollama_unavailable,
+                "pending_count": count_by_status(conn, "pending"),
+                "held_count": count_by_status(conn, "held"),
                 "errors": [],
             }
 
@@ -84,7 +105,12 @@ def _set_draft_status(draft_id: int, action: str) -> dict:
     with open_db() as conn:
         service = DraftService(
             conn,
-            OllamaClient(settings.ollama_base_url, settings.ollama_model),
+            OllamaClient(
+                    settings.ollama_base_url,
+                    settings.ollama_model,
+                    timeout=settings.ollama_timeout_seconds,
+                    keep_alive=settings.ollama_keep_alive,
+                ),
         )
         try:
             draft = getattr(service, action)(draft_id)
