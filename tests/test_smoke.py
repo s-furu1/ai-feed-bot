@@ -38,3 +38,15 @@ def test_main_calls_slack_when_enabled(tmp_path, monkeypatch):
 
     assert main() == 0
     assert calls == [True]
+
+
+def test_main_starts_web_when_enabled_without_slack(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setenv("AI_FEED_DB_PATH", str(tmp_path / "ai-feed.db"))
+    monkeypatch.setenv("AI_FEED_ENABLE_WEB", "true")
+    monkeypatch.setenv("AI_FEED_ENABLE_WORKER", "true")
+    monkeypatch.delenv("AI_FEED_ENABLE_SLACK", raising=False)
+    monkeypatch.setattr("app.main.start_web_if_enabled", lambda settings: calls.append(settings.ai_feed_enable_web) or True)
+
+    assert main() == 0
+    assert calls == [True]

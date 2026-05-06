@@ -25,6 +25,9 @@ class Settings:
     ai_feed_db_path: str
     ai_feed_enable_slack: bool
     ai_feed_enable_worker: bool
+    ai_feed_enable_web: bool
+    ai_feed_web_host: str
+    ai_feed_web_port: int
     slack_bot_token: str | None
     slack_app_token: str | None
     slack_signing_secret: str | None
@@ -41,6 +44,9 @@ def load_settings() -> Settings:
         ai_feed_db_path=os.getenv("AI_FEED_DB_PATH", "/data/ai-feed.db"),
         ai_feed_enable_slack=_env_bool("AI_FEED_ENABLE_SLACK", False),
         ai_feed_enable_worker=_env_bool("AI_FEED_ENABLE_WORKER", False),
+        ai_feed_enable_web=_env_bool("AI_FEED_ENABLE_WEB", False),
+        ai_feed_web_host=os.getenv("AI_FEED_WEB_HOST", "0.0.0.0"),
+        ai_feed_web_port=_env_int("AI_FEED_WEB_PORT", 8000),
         slack_bot_token=os.getenv("SLACK_BOT_TOKEN") or None,
         slack_app_token=os.getenv("SLACK_APP_TOKEN") or None,
         slack_signing_secret=os.getenv("SLACK_SIGNING_SECRET") or None,
@@ -49,4 +55,3 @@ def load_settings() -> Settings:
         ollama_model=os.getenv("OLLAMA_MODEL", "qwen3.5:9b"),
         ai_feed_fetch_interval_minutes=_env_int("AI_FEED_FETCH_INTERVAL_MINUTES", 60),
     )
-

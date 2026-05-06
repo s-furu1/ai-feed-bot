@@ -8,11 +8,14 @@ version = "0.1.0"
 description = "AI RSS feed summarizer and Slack draft workflow"
 requires-python = ">=3.11"
 dependencies = [
+  "fastapi>=0.115",
   "slack-bolt>=1.18.0",
+  "uvicorn>=0.34",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "httpx>=0.28",
   "pytest>=8.0.0",
 ]
 
@@ -22,4 +25,3 @@ testpaths = ["tests"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]
-

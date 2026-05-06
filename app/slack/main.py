@@ -90,14 +90,6 @@ def start_slack_if_configured(settings: Settings) -> bool:
 
     app = App(token=settings.slack_bot_token, signing_secret=settings.slack_signing_secret)
 
-    @app.command("/feed")
-    def feed_command(ack, respond, command):
-        ack()
-        if command.get("text", "").strip() == "ping":
-            respond("pong")
-        else:
-            respond("/feed ping のみ利用できます")
-
     register_action_handlers(app, settings)
 
     SocketModeHandler(app, settings.slack_app_token).start()

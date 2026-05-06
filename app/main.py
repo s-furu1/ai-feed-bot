@@ -9,6 +9,15 @@ from app.domains.events.service import record_event
 from app.worker.main import start_worker_if_enabled
 
 
+def start_web_if_enabled(settings) -> bool:
+    if not settings.ai_feed_enable_web:
+        return False
+    from app.web.main import main as start_web
+
+    start_web()
+    return True
+
+
 def wait_forever() -> None:
     stop_event = threading.Event()
 
@@ -35,12 +44,14 @@ def main() -> int:
         started = start_slack_if_configured(settings) or started
 
     started = start_worker_if_enabled(settings) or started
-    if started:
+    if settings.ai_feed_enable_web:
+        start_web_if_enabled(settings)
+    elif started:
         wait_forever()
     else:
         print(
-            "ai-feed-bot stopped: both AI_FEED_ENABLE_SLACK and "
-            "AI_FEED_ENABLE_WORKER are disabled or unavailable"
+            "ai-feed-bot stopped: AI_FEED_ENABLE_SLACK, "
+            "AI_FEED_ENABLE_WORKER, and AI_FEED_ENABLE_WEB are disabled or unavailable"
         )
     return 0
 
