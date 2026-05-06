@@ -70,6 +70,8 @@ workerを有効にする場合:
 AI_FEED_ENABLE_WORKER=true python -m app.main
 ```
 
+コンテナ運用では `AI_FEED_ENABLE_SLACK=true` または `AI_FEED_ENABLE_WORKER=true` の少なくとも一方を有効にしてください。どちらも無効、または有効化した機能が必要な環境変数不足で起動できない場合、理由をログに出して安全に終了します。
+
 ## 環境変数
 
 - `APP_ENV`
@@ -100,4 +102,3 @@ secret 実値は `.env.example`、README、コードに書きません。
 ## 次フェーズ
 
 次フェーズは daily-report-bot 実装予定です。homeserver compose 整備はまだ行いません。
-
